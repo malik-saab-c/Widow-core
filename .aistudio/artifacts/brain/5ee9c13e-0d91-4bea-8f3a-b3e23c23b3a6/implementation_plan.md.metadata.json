@@ -1,0 +1,6 @@
+{
+  "summary": "Complete architectural and implementation plan for CoreGuard - a Windows per-core CPU temperature monitoring desktop software with thermal danger alarms, tray notifications, and an automated GitHub Actions CI/CD release workflow.",
+  "updatedAt": "2026-10-14T07:29:00.806122439Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
