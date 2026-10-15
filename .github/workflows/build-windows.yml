@@ -1,0 +1,83 @@
+name: Build Windows Executable (CoreGuard)
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    name: Build Self-Contained Windows .exe
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore NuGet Dependencies
+        run: dotnet restore CoreGuard.csproj
+
+      - name: Publish Single-File Self-Contained .exe
+        run: >
+          dotnet publish CoreGuard.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
+          -o ./dist
+
+      - name: Compute SHA-256 Checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 ./dist/CoreGuard.exe).Hash
+          Set-Content -Path ./dist/SHA256SUMS.txt -Value "$hash  CoreGuard.exe"
+          Write-Host "Calculated SHA-256: $hash"
+
+      - name: Upload Build Artifact (Zip & Exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoreGuard-Windows-x64
+          path: |
+            ./dist/CoreGuard.exe
+            ./dist/SHA256SUMS.txt
+
+      - name: Publish GitHub Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: CoreGuard ${{ github.ref_name }}
+          body: |
+            ## CoreGuard Windows Release ${{ github.ref_name }}
+            Automated production build from GitHub Actions.
+            
+            ### Included Files:
+            - **`CoreGuard.exe`**: Standalone, portable single-file executable for 64-bit Windows 10/11. No .NET runtime installation required.
+            - **`SHA256SUMS.txt`**: Integrity verification checksum.
+            
+            ### Notes:
+            - Run as Administrator on Windows to grant access to hardware Model-Specific Registers (MSRs) for reading individual CPU core temperatures.
+          draft: false
+          prerelease: false
+          files: |
+            ./dist/CoreGuard.exe
+            ./dist/SHA256SUMS.txt
